@@ -13,6 +13,9 @@ def main() -> None:
     loop = asyncio.get_event_loop()
 
     messages_queue = asyncio.Queue()
+    messages_queue.put_nowait('Привет обитателям чата!')
+    messages_queue.put_nowait('Как дела?')
+
     sending_queue = asyncio.Queue()
     status_updates_queue = asyncio.Queue()
 
