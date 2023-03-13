@@ -4,24 +4,31 @@
 
 import asyncio
 import gui
+import time
 from contextlib import suppress
 
 
-def main() -> None:
+async def generate_msgs(queue: asyncio.Queue) -> None:
+    """Генерирует сообщения."""
+
+    while True:
+        queue.put_nowait(f'Ping {int(time.time())}')
+        await asyncio.sleep(1)
+
+
+async def main() -> None:
     """Инициализирует переменные и запускает программу ."""
 
-    loop = asyncio.get_event_loop()
-
     messages_queue = asyncio.Queue()
-    messages_queue.put_nowait('Привет обитателям чата!')
-    messages_queue.put_nowait('Как дела?')
-
     sending_queue = asyncio.Queue()
     status_updates_queue = asyncio.Queue()
 
     with suppress(gui.TkAppClosed, KeyboardInterrupt):
-        loop.run_until_complete(gui.draw(messages_queue, sending_queue, status_updates_queue))
+        await asyncio.gather(
+            gui.draw(messages_queue, sending_queue, status_updates_queue),
+            generate_msgs(messages_queue)
+        )
 
 
 if __name__ == '__main__':
-    main()
+    asyncio.run(main())
