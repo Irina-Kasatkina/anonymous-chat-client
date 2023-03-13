@@ -5,13 +5,20 @@
 import argparse
 import asyncio
 import gui
+import logging
+import signal
+import socket
 import time
-from contextlib import suppress
+from asyncio.streams import StreamReader, StreamWriter
+from contextlib import asynccontextmanager, suppress
 
 import configargparse
 from dotenv import load_dotenv
 
 import defaults
+
+
+DELAY_PER_SECONDS = 1
 
 
 def read_parse_args() -> argparse.Namespace:
@@ -20,15 +27,6 @@ def read_parse_args() -> argparse.Namespace:
     load_dotenv()
 
     parser = configargparse.ArgParser(description='Асинхронный клиент для подключения к чату')
-    parser.add(
-        '-f',
-        '--history-filepath',
-        metavar='FILEPATH',
-        type=str,
-        env_var='HISTORY_FILEPATH',
-        default=defaults.HISTORY_FILEPATH,
-        help=f'Путь к файлу для сохранения истории переписки'
-    )
     parser.add(
         '-hl',
         '--host-for-listener',
@@ -60,18 +58,66 @@ async def main() -> None:
 
     await asyncio.gather(
         gui.draw(messages_queue, sending_queue, status_updates_queue),
-        generate_msgs(messages_queue)
+        read_msgs(args.host_for_listener, args.port_for_listener, messages_queue)
     )
 
 
-async def generate_msgs(queue: asyncio.Queue) -> None:
-    """Генерирует сообщения."""
+async def read_msgs(host: str, port: int, queue: asyncio.Queue) -> None:
+    """Читает сообщения из чата."""
 
     while True:
-        queue.put_nowait(f'Ping {int(time.time())}')
-        await asyncio.sleep(1)
+        async with open_connection(host, port) as (reader, _):
+            while True:
+                try:
+                    chat_message = await asyncio.wait_for(reader.readline(), timeout=10.0)
+                    message = chat_message.decode().rstrip()
+                    queue.put_nowait(message)
+                    await asyncio.sleep(1)
+                except asyncio.exceptions.TimeoutError:
+                    return
+
+
+@asynccontextmanager
+async def open_connection(host: str, port: int) -> (StreamReader, StreamWriter):
+    """Устанавливает соединение с сервером по указанным хосту и порту."""
+    
+    connected = False
+    while True:
+        writer = None
+        try:
+            reader, writer = await asyncio.open_connection(host, port)
+            signal.signal(signal.SIGINT, handle_keyboard_interrupt)
+            connected = True            
+            yield reader, writer
+            break
+
+        except (ConnectionRefusedError, ConnectionResetError, socket.gaierror, OSError):
+            if connected:
+                message = 'Произошёл обрыв соединения с сервером'
+                logging.error(message)
+                break
+
+            message = 'Нет соединения с сервером'
+            logging.warning(message)
+            await asyncio.sleep(DELAY_PER_SECONDS)
+            continue
+
+        finally:
+            if writer:
+                writer.close()
+                await writer.wait_closed()
+            message = 'Соединение с сервером закрыто'
+            logging.debug(message)
+
+
+def handle_keyboard_interrupt(signal, frame):
+    """Обрабатывает прерывание работы программы с клавиатуры."""
+
+    logging.info('Работа программы была прервана с клавиатуры')
+    exit(0)
 
 
 if __name__ == '__main__':
+    print(asyncio.__file__)
     with suppress(gui.TkAppClosed, KeyboardInterrupt):
         asyncio.run(main())
