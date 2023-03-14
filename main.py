@@ -12,6 +12,8 @@ import socket
 import time
 from asyncio.streams import StreamReader, StreamWriter
 from contextlib import asynccontextmanager, suppress
+from tkinter import messagebox
+from typing import Optional
 
 import aiofiles
 import configargparse
@@ -22,6 +24,31 @@ import defaults
 
 DELAY_PER_SECONDS = 1
 SLEEP_INTERVAL = 1 / 120
+
+
+class InvalidToken(Exception):
+    def __init__(self, title: str, message: Optional[str] = '') -> None:
+        self.title = title
+        self.message = message
+        super().__init__(title)
+
+
+async def main() -> None:
+    """Инициализирует переменные и запускает программу ."""
+    args = read_parse_args()
+
+    messages_queue = create_messages_queue(args.history_filepath)
+    file_queue = asyncio.Queue()
+    sending_queue = asyncio.Queue()
+    status_updates_queue = asyncio.Queue()
+
+    await asyncio.gather(
+        gui.draw(messages_queue, sending_queue, status_updates_queue),
+        check_token(args.host_for_sender, args.port_for_sender, args.token, messages_queue),
+        read_messages(args.host_for_listener, args.port_for_listener, messages_queue, file_queue),
+        save_messages(args.history_filepath, file_queue),
+        send_messages(args.host_for_sender, args.port_for_sender, args.token, sending_queue)
+    )
 
 
 def read_parse_args() -> argparse.Namespace:
@@ -93,22 +120,14 @@ def read_token_from_file() -> str:
     return token
 
 
-async def main() -> None:
-    """Инициализирует переменные и запускает программу ."""
-    args = read_parse_args()
-
-    messages_queue = create_massages_queue(args.history_filepath)
-    file_queue = asyncio.Queue()
-    sending_queue = asyncio.Queue()
-    status_updates_queue = asyncio.Queue()
-
-    await asyncio.gather(
-        gui.draw(messages_queue, sending_queue, status_updates_queue),
-        check_token(args.host_for_sender, args.port_for_sender, args.token, messages_queue),
-        read_messages(args.host_for_listener, args.port_for_listener, messages_queue, file_queue),
-        save_messages(args.history_filepath, file_queue),
-        send_messages(args.host_for_sender, args.port_for_sender, args.token, sending_queue)
-    )
+def create_messages_queue(filepath: str) -> asyncio.Queue:
+    """Создаёт очередь сообщений и помещает в неё сообщения из файла."""
+    queue = asyncio.Queue()
+    with suppress(FileNotFoundError):
+        with open(filepath, 'r', encoding='UTF8') as file_handler:
+            messages = file_handler.read()
+        queue.put_nowait(messages)
+    return queue
 
 
 async def read_messages(host: str, port: int, queue: asyncio.Queue, file_queue: asyncio.Queue) -> None:
@@ -126,21 +145,10 @@ async def read_messages(host: str, port: int, queue: asyncio.Queue, file_queue: 
                     return
 
 
-def create_massages_queue(filepath: str) -> asyncio.Queue:
-    """Создаёт очередь сообщений и помещает в неё сообщения из файла."""
-    queue = asyncio.Queue()
-    with suppress(FileNotFoundError):
-        with open(filepath, 'r', encoding='UTF8') as file_handler:
-            messages = file_handler.read()
-        queue.put_nowait(messages)
-    return queue
-
-
 async def check_token(host: str, port: int, token: str, queue: asyncio.Queue) -> None:
     """Проверяет корректность токена."""
     if not token:
-        queue.put_nowait('Токен не указан. Без него вы не можете отправлять сообщения.\n')
-        return
+        raise InvalidToken('Токен не указан', 'Укажите токен, без него работа с чатом невозможна')
 
     nickname = ''
     async with open_connection(host, port) as (reader, writer):
@@ -150,7 +158,7 @@ async def check_token(host: str, port: int, token: str, queue: asyncio.Queue) ->
         queue.put_nowait(f'Выполнена авторизация. Пользователь {nickname}.\n')
         return
 
-    queue.put_nowait('Неизвестный токен. Проверьте его или зарегистрируйте заново.\n')
+    raise InvalidToken('Неверный токен', 'Проверьте токен, сервер его не узнал')
 
 
 async def authorize(reader: StreamReader, writer: StreamWriter, token: str) -> str:
@@ -226,7 +234,7 @@ async def send_messages(host: str, port: int, token: str, queue: asyncio.Queue) 
         async with open_connection(host, port) as (reader, writer):
             successful_authorization = await authorize(reader, writer, token)
             if not successful_authorization:
-                return
+                raise InvalidToken('Неверный токен', 'Проверьте токен, сервер его не узнал')
 
             host_response = await reader.readline()
             await submit_message(writer, message)
@@ -235,6 +243,8 @@ async def send_messages(host: str, port: int, token: str, queue: asyncio.Queue) 
 
 
 if __name__ == '__main__':
-    print(asyncio.__file__)
-    with suppress(gui.TkAppClosed, KeyboardInterrupt):
-        asyncio.run(main())
+    try:
+        with suppress(gui.TkAppClosed, KeyboardInterrupt):
+            asyncio.run(main())
+    except InvalidToken as ex:
+        messagebox.showinfo(title=ex.title, message=ex.message)
