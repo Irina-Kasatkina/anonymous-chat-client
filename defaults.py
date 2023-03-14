@@ -1,6 +1,6 @@
 # coding=utf-8
 
-"""Параметры программы по умолчанию."""
+"""Параметры по умолчанию для программы."""
 
 HISTORY_FILEPATH = 'history.txt'
 HOST_FOR_LISTENER = 'minechat.dvmn.org'

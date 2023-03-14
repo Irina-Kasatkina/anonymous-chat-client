@@ -53,7 +53,23 @@ def read_parse_args() -> argparse.Namespace:
         env_var='HISTORY_FILEPATH',
         default=defaults.HISTORY_FILEPATH,
         help=f'Путь к файлу для сохранения истории переписки'
-    )    
+    )
+    parser.add(
+        '-hs',
+        '--host-for-sender',
+        type=str,
+        env_var='HOST_FOR_SENDER',
+        default=defaults.HOST_FOR_SENDER,
+        help='Хост для отправки сообщений в чат'
+    )
+    parser.add(
+        '-ps',
+        '--port-for-sender',
+        type=int,
+        env_var='PORT_FOR_SENDER',
+        default=defaults.PORT_FOR_SENDER,
+        help='Порт для отправки сообщений в чат'
+    )     
     return parser.parse_args()
 
 
@@ -75,7 +91,8 @@ async def main() -> None:
     await asyncio.gather(
         gui.draw(messages_queue, sending_queue, status_updates_queue),
         read_msgs(args.host_for_listener, args.port_for_listener, messages_queue, file_queue),
-        save_messages(args.history_filepath, file_queue)
+        save_messages(args.history_filepath, file_queue),
+        send_msgs(args.host_for_sender, args.port_for_sender, sending_queue, messages_queue)
     )
 
 
@@ -138,6 +155,14 @@ async def save_messages(filepath: str, queue: asyncio.Queue) -> None:
             await file_handler.write(f'{msg}\n')
         await asyncio.sleep(SLEEP_INTERVAL)
 
+
+async def send_msgs(host: str, port: int, queue: asyncio.Queue, messages_queue: asyncio.Queue) -> None:
+    """Записывает ввод пользователя в список входящих сообщений."""
+
+    while True:
+        message = await queue.get()
+        messages_queue.put_nowait(f'Пользователь написал: {message}')
+        await asyncio.sleep(SLEEP_INTERVAL)
 
 if __name__ == '__main__':
     print(asyncio.__file__)
