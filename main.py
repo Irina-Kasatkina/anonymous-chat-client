@@ -104,14 +104,14 @@ async def main() -> None:
 
     await asyncio.gather(
         gui.draw(messages_queue, sending_queue, status_updates_queue),
-        put_nickname_message(args.host_for_sender, args.port_for_sender, args.token, messages_queue),
-        read_msgs(args.host_for_listener, args.port_for_listener, messages_queue, file_queue),
+        check_token(args.host_for_sender, args.port_for_sender, args.token, messages_queue),
+        read_messages(args.host_for_listener, args.port_for_listener, messages_queue, file_queue),
         save_messages(args.history_filepath, file_queue),
-        send_msgs(args.host_for_sender, args.port_for_sender, sending_queue, messages_queue)
+        send_messages(args.host_for_sender, args.port_for_sender, args.token, sending_queue)
     )
 
 
-async def read_msgs(host: str, port: int, queue: asyncio.Queue, file_queue: asyncio.Queue) -> None:
+async def read_messages(host: str, port: int, queue: asyncio.Queue, file_queue: asyncio.Queue) -> None:
     """Читает сообщения из чата и записывает их в две очереди."""
     while True:
         async with open_connection(host, port) as (reader, _):
@@ -127,7 +127,7 @@ async def read_msgs(host: str, port: int, queue: asyncio.Queue, file_queue: asyn
 
 
 def create_massages_queue(filepath: str) -> asyncio.Queue:
-    """Создаёт очередь сообщений и помещает в неё сообщения из файла."""    
+    """Создаёт очередь сообщений и помещает в неё сообщения из файла."""
     queue = asyncio.Queue()
     with suppress(FileNotFoundError):
         with open(filepath, 'r', encoding='UTF8') as file_handler:
@@ -136,24 +136,33 @@ def create_massages_queue(filepath: str) -> asyncio.Queue:
     return queue
 
 
-async def put_nickname_message(host: str, port: int, token: str, queue: asyncio.Queue) -> None:
-    """Помещает сообщение с ником пользователя в очередь сообщений."""
+async def check_token(host: str, port: int, token: str, queue: asyncio.Queue) -> None:
+    """Проверяет корректность токена."""
     if not token:
         queue.put_nowait('Токен не указан. Без него вы не можете отправлять сообщения.\n')
         return
 
+    nickname = ''
     async with open_connection(host, port) as (reader, writer):
+        nickname = await authorize(reader, writer, token)
+
+    if nickname:
+        queue.put_nowait(f'Выполнена авторизация. Пользователь {nickname}.\n')
+        return
+
+    queue.put_nowait('Неизвестный токен. Проверьте его или зарегистрируйте заново.\n')
+
+
+async def authorize(reader: StreamReader, writer: StreamWriter, token: str) -> str:
+    host_response = await reader.readline()
+    await submit_message(writer, token)
+
+    with suppress(json.decoder.JSONDecodeError):
         host_response = await reader.readline()
-        await submit_message(writer, token)
-
-        with suppress(json.decoder.JSONDecodeError):
-            host_response = await reader.readline()
-            account_parameters = json.loads(host_response)
-            if account_parameters:
-                queue.put_nowait(f'Выполнена авторизация. Пользователь {account_parameters["nickname"]}.\n')
-                return
-
-        queue.put_nowait('Неизвестный токен. Проверьте его или зарегистрируйте заново.\n')
+        account_parameters = json.loads(host_response)
+        if account_parameters:
+            return account_parameters['nickname']
+    return ''
 
 
 async def submit_message(writer, message) -> None:
@@ -210,11 +219,18 @@ async def save_messages(filepath: str, queue: asyncio.Queue) -> None:
         await asyncio.sleep(SLEEP_INTERVAL)
 
 
-async def send_msgs(host: str, port: int, queue: asyncio.Queue, messages_queue: asyncio.Queue) -> None:
-    """Записывает ввод пользователя в список входящих сообщений."""
+async def send_messages(host: str, port: int, token: str, queue: asyncio.Queue) -> None:
+    """Отправляет на сервер сообщения из очереди."""
     while True:
-        message = await queue.get()
-        messages_queue.put_nowait(f'Пользователь написал: {message}')
+        message = await queue.get()        
+        async with open_connection(host, port) as (reader, writer):
+            successful_authorization = await authorize(reader, writer, token)
+            if not successful_authorization:
+                return
+
+            host_response = await reader.readline()
+            await submit_message(writer, message)
+
         await asyncio.sleep(SLEEP_INTERVAL)
 
 
