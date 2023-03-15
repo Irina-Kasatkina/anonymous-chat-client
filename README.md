@@ -35,7 +35,7 @@ pip install -r requirements.txt
 
 Для запуска программы наберите в командной строке терминала/консоли с активированным виртуальным окружением команду:
 ```bash
-python main.py [-t USER_TOKEN] [-hl HOST_FOR_LISTENER] [-pl PORT_FOR_LISTENER] [-hs HOST_FOR_SENDER] [-ps PORT_FOR_SENDER] [-f HISTORY_FILEPATH]
+python main.py [-t USER_TOKEN] [-rh READER_HOST] [-rp READER_PORT] [-sh SENDER_HOST] [-sp SENDER_PORT] [-f HISTORY_FILEPATH]
 ```
 
 Аргументы командной строки описаны ниже в разделе `Настройки чата`. 
@@ -56,14 +56,13 @@ python main.py [-t USER_TOKEN] [-hl HOST_FOR_LISTENER] [-pl PORT_FOR_LISTENER] [
 
 Доступны следующие переменные окружения:
 
-- `HOST_FOR_LISTENER` - хост для прослушивания сообщений из чата; по умолчанию `minechat.dvmn.org`;
-- `PORT_FOR_LISTENER` - порт для прослушивания сообщений из чата; по умолчанию `5000`;
-- `HOST_FOR_SENDER` - хост для прослушивания сообщений из чата; по умолчанию `minechat.dvmn.org`;
-- `PORT_FOR_SENDER` - порт для прослушивания сообщений из чата; по умолчанию `5050`;
+- `READER_HOST` - хост для чтения сообщений из чата; по умолчанию `minechat.dvmn.org`;
+- `READER_PORT` - порт для чтения сообщений из чата; по умолчанию `5000`;
+- `SENDER_HOST` - хост для отправки сообщений в чат; по умолчанию `minechat.dvmn.org`;
+- `SENDER_PORT` - порт для отправки сообщений в чат; по умолчанию `5050`;
 - `USER_TOKEN` - токен пользователя для отправки сообщений в чат; значение по умолчанию отсутствует;
 - `HISTORY_FILEPATH` - путь к файлу для сохранения истории переписки; по умолчанию `history.txt`.
 
 ## Цели проекта
 
 Код написан в учебных целях — это урок в курсе по Python и веб-разработке на сайте [Devman](https://dvmn.org).
-
