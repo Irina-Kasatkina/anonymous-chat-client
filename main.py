@@ -13,6 +13,7 @@ from chat_reader import read_messages
 from chat_sender import send_messages
 from exceptions import InvalidToken
 from history import put_history_to_queue, save_messages
+from watchdog import watch_for_connection
 
 
 async def main() -> None:
@@ -23,15 +24,17 @@ async def main() -> None:
     file_queue = asyncio.Queue()
     sending_queue = asyncio.Queue()
     status_updates_queue = asyncio.Queue()
+    watchdog_queue = asyncio.Queue()
 
     put_history_to_queue(args.history_filepath, messages_queue)
 
     await asyncio.gather(
         gui.draw(messages_queue, sending_queue, status_updates_queue),
-        check_token(args.sender_host, args.sender_port, args.token, messages_queue, status_updates_queue),
-        read_messages(args.reader_host, args.reader_port, messages_queue, file_queue, status_updates_queue),
+        check_token(args.sender_host, args.sender_port, args.token, messages_queue, status_updates_queue, watchdog_queue),
+        read_messages(args.reader_host, args.reader_port, messages_queue, file_queue, status_updates_queue, watchdog_queue),
         save_messages(args.history_filepath, file_queue),
-        send_messages(args.sender_host, args.sender_port, args.token, sending_queue, status_updates_queue)
+        send_messages(args.sender_host, args.sender_port, args.token, sending_queue, status_updates_queue, watchdog_queue),
+        watch_for_connection(watchdog_queue)
     )
 
 

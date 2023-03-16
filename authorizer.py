@@ -30,13 +30,15 @@ async def check_token(
     port: int,
     token: str,
     queue: asyncio.Queue,
-    status_update_queue: asyncio.Queue
+    status_update_queue: asyncio.Queue,
+    watchdog_queue: asyncio.Queue
 ) -> None:
     """Проверяет корректность токена."""
     if not token:
         raise InvalidToken('Токен не указан', 'Укажите токен, без него работа с чатом невозможна')
 
     nickname = ''
+    watchdog_queue.put_nowait('Prompt before auth')
     async with open_connection(host, port, status_update_queue, gui.SendingConnectionStateChanged) as (reader, writer):
         nickname = await authorize(reader, writer, token)
     status_update_queue.put_nowait(gui.SendingConnectionStateChanged.CLOSED)
@@ -44,6 +46,7 @@ async def check_token(
     if nickname:
         queue.put_nowait(f'Выполнена авторизация. Пользователь {nickname}.\n')
         status_update_queue.put_nowait(gui.NicknameReceived(nickname))
+        watchdog_queue.put_nowait('Authorization done')
         return
 
     raise InvalidToken('Неверный токен', 'Проверьте токен, сервер его не узнал')

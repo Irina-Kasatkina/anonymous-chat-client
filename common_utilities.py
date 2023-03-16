@@ -12,7 +12,7 @@ from typing import Type, TypeVar
 import gui
 
 
-DELAY_PER_SECONDS = 1
+WAIT_CONNECTION_SLEEP_INTERVAL = 1
 
 
 StateChangeEnum = TypeVar('StateChangeEnum', gui.ReadConnectionStateChanged, gui.SendingConnectionStateChanged)
@@ -43,7 +43,7 @@ async def open_connection(
                 status_update_queue.put_nowait(gui_state_class.CLOSED)
                 break
 
-            await asyncio.sleep(DELAY_PER_SECONDS)
+            await asyncio.sleep(WAIT_CONNECTION_SLEEP_INTERVAL)
             continue
 
         finally:

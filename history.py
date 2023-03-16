@@ -7,7 +7,7 @@ from contextlib import suppress
 
 import aiofiles
 
-import constants
+HISTORY_SLEEP_INTERVAL = 1 / 120
 
 
 def put_history_to_queue(filepath: str, queue: asyncio.Queue) -> None:
@@ -21,7 +21,7 @@ def put_history_to_queue(filepath: str, queue: asyncio.Queue) -> None:
 async def save_messages(filepath: str, queue: asyncio.Queue) -> None:
     """Записывает сообщения в текстовый файл, находящийся по указанному пути."""
     while True:
-        msg = await queue.get()
+        message = await queue.get()
         async with aiofiles.open(filepath, 'a', encoding='UTF8') as file_handler:
-            await file_handler.write(f'{msg}\n')
-        await asyncio.sleep(constants.SLEEP_INTERVAL)
+            await file_handler.write(f'{message}\n')
+        await asyncio.sleep(HISTORY_SLEEP_INTERVAL)

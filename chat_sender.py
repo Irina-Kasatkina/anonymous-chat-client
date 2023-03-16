@@ -4,11 +4,13 @@
 
 import asyncio
 
-import constants
 import gui
 from authorizer import authorize
 from common_utilities import open_connection, submit_message
 from exceptions import InvalidToken
+
+
+SENDER_SLEEP_INTERVAL = 1 / 120
 
 
 async def send_messages(
@@ -16,7 +18,8 @@ async def send_messages(
     port: int,
     token: str,
     queue: asyncio.Queue,
-    status_update_queue: asyncio.Queue
+    status_update_queue: asyncio.Queue,
+    watchdog_queue: asyncio.Queue
 ) -> None:
     """Отправляет на сервер сообщения из очереди."""
     while True:
@@ -36,4 +39,5 @@ async def send_messages(
             await submit_message(writer, message)
 
         status_update_queue.put_nowait(gui.SendingConnectionStateChanged.CLOSED)
-        await asyncio.sleep(constants.SLEEP_INTERVAL)
+        watchdog_queue.put_nowait('Message sent')
+        await asyncio.sleep(SENDER_SLEEP_INTERVAL)
