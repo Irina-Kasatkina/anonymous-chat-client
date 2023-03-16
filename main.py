@@ -28,10 +28,10 @@ async def main() -> None:
 
     await asyncio.gather(
         gui.draw(messages_queue, sending_queue, status_updates_queue),
-        check_token(args.sender_host, args.sender_port, args.token, messages_queue),
-        read_messages(args.reader_host, args.reader_port, messages_queue, file_queue),
+        check_token(args.sender_host, args.sender_port, args.token, messages_queue, status_updates_queue),
+        read_messages(args.reader_host, args.reader_port, messages_queue, file_queue, status_updates_queue),
         save_messages(args.history_filepath, file_queue),
-        send_messages(args.sender_host, args.sender_port, args.token, sending_queue)
+        send_messages(args.sender_host, args.sender_port, args.token, sending_queue, status_updates_queue)
     )
 
 
