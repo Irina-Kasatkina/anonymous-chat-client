@@ -6,8 +6,10 @@ import asyncio
 import logging
 import time
 
+import async_timeout
 
-WATCHDOG_SLEEP_INTERVAL = 1 / 120
+
+WATCHDOG_TIMEOUT = 10
 
 
 logging.basicConfig(level=logging.DEBUG, format='%(message)s')
@@ -17,6 +19,10 @@ watchdog_logger = logging.getLogger()
 async def watch_for_connection(watchdog_queue: asyncio.Queue) -> None:
     """Отслеживает события соединения с чатом."""
     while True:
-        event = await watchdog_queue.get()
-        watchdog_logger.info(f'[{int(time.time())}] Connection is alive. {event}')
-        await asyncio.sleep(WATCHDOG_SLEEP_INTERVAL)
+        try:
+            async with async_timeout.timeout(WATCHDOG_TIMEOUT) as cm:
+                event = await watchdog_queue.get()
+        except asyncio.TimeoutError:
+            watchdog_logger.info(f'[{int(time.time())}] {WATCHDOG_TIMEOUT}s timeout is elapsed')
+        else:
+            watchdog_logger.info(f'[{int(time.time())}] Connection is alive. {event}')
