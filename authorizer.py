@@ -7,9 +7,9 @@ import json
 from asyncio.streams import StreamReader, StreamWriter
 from contextlib import suppress
 
-import gui
-from common_utilities import open_connection, submit_message
+from connections import open_connection, submit_message
 from exceptions import InvalidToken
+from gui import NicknameReceived, SendingConnectionStateChanged
 
 
 async def authorize(reader: StreamReader, writer: StreamWriter, token: str) -> str:
@@ -39,13 +39,18 @@ async def check_token(
 
     nickname = ''
     watchdog_queue.put_nowait('Prompt before auth')
-    async with open_connection(host, port, status_update_queue, gui.SendingConnectionStateChanged) as (reader, writer):
+    reader, writer = await open_connection(host, port, status_update_queue, SendingConnectionStateChanged)
+    try:
         nickname = await authorize(reader, writer, token)
-    status_update_queue.put_nowait(gui.SendingConnectionStateChanged.CLOSED)
+    except asyncio.CancelledError:
+        raise
+    finally:
+        writer.close()
+        await writer.wait_closed()
 
     if nickname:
-        queue.put_nowait(f'Выполнена авторизация. Пользователь {nickname}.\n')
-        status_update_queue.put_nowait(gui.NicknameReceived(nickname))
+        queue.put_nowait(f'Выполнена авторизация. Пользователь {nickname}.')
+        status_update_queue.put_nowait(NicknameReceived(nickname))
         watchdog_queue.put_nowait('Authorization done')
         return
 

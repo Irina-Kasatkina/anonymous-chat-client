@@ -3,17 +3,15 @@
 """Запуск интерфейса пользователя чата."""
 
 import asyncio
-from contextlib import suppress
 from tkinter import messagebox
+
+import anyio
 
 import gui
 from args_parser import read_parse_args
-from authorizer import check_token
-from chat_reader import read_messages
-from chat_sender import send_messages
 from exceptions import InvalidToken
 from history import put_history_to_queue, save_messages
-from watchdog import watch_for_connection
+from watchdog import handle_connection, watch_for_connection
 
 
 async def main() -> None:
@@ -28,19 +26,17 @@ async def main() -> None:
 
     put_history_to_queue(args.history_filepath, messages_queue)
 
-    await asyncio.gather(
-        gui.draw(messages_queue, sending_queue, status_updates_queue),
-        check_token(args.sender_host, args.sender_port, args.token, messages_queue, status_updates_queue, watchdog_queue),
-        read_messages(args.reader_host, args.reader_port, messages_queue, file_queue, status_updates_queue, watchdog_queue),
-        save_messages(args.history_filepath, file_queue),
-        send_messages(args.sender_host, args.sender_port, args.token, sending_queue, status_updates_queue, watchdog_queue),
-        watch_for_connection(watchdog_queue)
-    )
+    async with anyio.create_task_group() as task_group:
+        task_group.start_soon(gui.draw, messages_queue, sending_queue, status_updates_queue)
+        task_group.start_soon(save_messages, args.history_filepath, file_queue)
+        task_group.start_soon(handle_connection, args.reader_host, args.reader_port, args.sender_host, args.sender_port, args.token,
+                              messages_queue, sending_queue, file_queue, status_updates_queue, watchdog_queue)
 
 
 if __name__ == '__main__':
     try:
-        with suppress(gui.TkAppClosed, KeyboardInterrupt):
-            asyncio.run(main())
+        asyncio.run(main())
     except InvalidToken as ex:
         messagebox.showinfo(title=ex.title, message=ex.message)
+    except (gui.TkAppClosed, KeyboardInterrupt):
+        pass

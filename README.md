@@ -21,9 +21,7 @@ source venv/bin/activate
 
 ```bash
 python -m venv venv
-cd venv/Scripts
-activate
-cd ../..
+venv\Scripts\activate
 ```
 
 Установите в активированном виртуальном окружении зависимости с помощью `pip`:

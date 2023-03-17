@@ -4,10 +4,10 @@
 
 import asyncio
 
-import gui
 from authorizer import authorize
-from common_utilities import open_connection, submit_message
+from connections import open_connection, submit_message
 from exceptions import InvalidToken
+from gui import SendingConnectionStateChanged
 
 
 SENDER_SLEEP_INTERVAL = 1 / 120
@@ -22,22 +22,24 @@ async def send_messages(
     watchdog_queue: asyncio.Queue
 ) -> None:
     """Отправляет на сервер сообщения из очереди."""
-    while True:
-        message = await queue.get()        
-        async with open_connection(
-            host,
-            port,
-            status_update_queue,
-            gui.SendingConnectionStateChanged
-        ) as (reader, writer):
+    reader, writer = await open_connection(host, port, status_update_queue, SendingConnectionStateChanged)
+    try:
+        successful_authorization = await authorize(reader, writer, token)
+        if not successful_authorization:
+            watchdog_queue.put_nowait('Authorization error')
+            return
 
-            successful_authorization = await authorize(reader, writer, token)
-            if not successful_authorization:
-                raise InvalidToken('Неверный токен', 'Проверьте токен, сервер его не узнал')
-
-            host_response = await reader.readline()
+        host_response = await reader.readline()
+        while True:
+            message = await queue.get()
             await submit_message(writer, message)
 
-        status_update_queue.put_nowait(gui.SendingConnectionStateChanged.CLOSED)
-        watchdog_queue.put_nowait('Message sent')
-        await asyncio.sleep(SENDER_SLEEP_INTERVAL)
+            watchdog_queue.put_nowait('Message sent')
+            await asyncio.sleep(SENDER_SLEEP_INTERVAL)
+    except asyncio.CancelledError:
+        raise
+    finally:
+        writer.close()
+        await writer.wait_closed()
+        watchdog_queue.put_nowait('send_messages(): SendingConnection closed')
+        status_update_queue.put_nowait(SendingConnectionStateChanged.CLOSED)
