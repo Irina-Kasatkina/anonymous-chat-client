@@ -4,6 +4,7 @@
 
 import asyncio
 import logging
+import socket
 import time
 
 import anyio
@@ -15,8 +16,9 @@ from chat_sender import send_messages
 from exceptions import InvalidToken
 
 
+PING_PONG_INTERVAL = 5
 RECONNECTION_DELAY = 1
-SERVER_SILENCE_TIMEOUT = 1
+SERVER_SILENCE_TIMEOUT = 10
 
 
 logging.basicConfig(level=logging.DEBUG, format='%(message)s')
@@ -47,20 +49,30 @@ async def handle_connection(
                                               messages_queue, file_queue, status_updates_queue, watchdog_queue)
                         task_group.start_soon(send_messages, sender_host, sender_port, token,
                                               sending_queue, status_updates_queue, watchdog_queue)
-                        task_group.start_soon(watch_for_connection, watchdog_queue)
-                except ConnectionError:
+                        task_group.start_soon(watch_for_connection, sending_queue, watchdog_queue)
+                except (socket.gaierror, ConnectionError, UnicodeDecodeError):
                     watchdog_logger.warning('Connection error happened')
                     raise asyncio.CancelledError
+                except anyio.ExceptionGroup as exception_group:
+                    for exception in exception_group.exceptions:
+                        if isinstance(exception, (socket.gaierror, ConnectionError)):
+                            watchdog_logger.warning('Connection error happened')
+                            raise asyncio.CancelledError
+                    raise
         except asyncio.CancelledError:
             await asyncio.sleep(RECONNECTION_DELAY)
 
 
-async def watch_for_connection(watchdog_queue: asyncio.Queue) -> None:
+async def watch_for_connection(sending_queue: asyncio.Queue, watchdog_queue: asyncio.Queue) -> None:
     """Отслеживает события соединения с чатом."""
     while True:
         try:
             async with async_timeout.timeout(SERVER_SILENCE_TIMEOUT) as cm:
                 event = await watchdog_queue.get()
+                sending_queue.put_nowait('') # ping pong
+                await asyncio.sleep(PING_PONG_INTERVAL)
+            if cm.expired:
+                raise ConnectionError
         except asyncio.TimeoutError:
             watchdog_logger.info(f'[{int(time.time())}] {SERVER_SILENCE_TIMEOUT}s timeout is elapsed')
             raise ConnectionError

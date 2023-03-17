@@ -7,7 +7,7 @@ import json
 from asyncio.streams import StreamReader, StreamWriter
 from contextlib import suppress
 
-from connections import open_connection, submit_message
+from connections import close_connection, open_connection, submit_message
 from exceptions import InvalidToken
 from gui import NicknameReceived, SendingConnectionStateChanged
 
@@ -45,8 +45,7 @@ async def check_token(
     except asyncio.CancelledError:
         raise
     finally:
-        writer.close()
-        await writer.wait_closed()
+        await close_connection(writer, status_update_queue, SendingConnectionStateChanged)
 
     if nickname:
         queue.put_nowait(f'Выполнена авторизация. Пользователь {nickname}.')

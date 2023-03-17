@@ -5,7 +5,7 @@
 import asyncio
 
 from authorizer import authorize
-from connections import open_connection, submit_message
+from connections import close_connection, open_connection, submit_message
 from exceptions import InvalidToken
 from gui import SendingConnectionStateChanged
 
@@ -24,13 +24,16 @@ async def send_messages(
     """Отправляет на сервер сообщения из очереди."""
     reader, writer = await open_connection(host, port, status_update_queue, SendingConnectionStateChanged)
     try:
+        status_update_queue.put_nowait(SendingConnectionStateChanged.ESTABLISHED)
         successful_authorization = await authorize(reader, writer, token)
         if not successful_authorization:
             watchdog_queue.put_nowait('Authorization error')
             return
 
+        status_update_queue.put_nowait(SendingConnectionStateChanged.ESTABLISHED)
         host_response = await reader.readline()
         while True:
+            status_update_queue.put_nowait(SendingConnectionStateChanged.ESTABLISHED)
             message = await queue.get()
             await submit_message(writer, message)
 
@@ -39,7 +42,4 @@ async def send_messages(
     except asyncio.CancelledError:
         raise
     finally:
-        writer.close()
-        await writer.wait_closed()
-        watchdog_queue.put_nowait('send_messages(): SendingConnection closed')
-        status_update_queue.put_nowait(SendingConnectionStateChanged.CLOSED)
+        await close_connection(writer, status_update_queue, SendingConnectionStateChanged)

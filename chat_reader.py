@@ -4,7 +4,7 @@
 
 import asyncio
 
-from connections import open_connection
+from connections import close_connection, open_connection
 from gui import ReadConnectionStateChanged
 
 READER_SLEEP_INTERVAL = 1 / 120
@@ -32,6 +32,4 @@ async def read_messages(
     except asyncio.CancelledError:
         raise
     finally:
-        writer.close()
-        await writer.wait_closed()
-        status_update_queue.put_nowait(ReadConnectionStateChanged.CLOSED)
+        await close_connection(writer, status_update_queue, ReadConnectionStateChanged)

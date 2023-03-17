@@ -31,7 +31,21 @@ async def open_connection(
             reader, writer = await asyncio.open_connection(host, port)
         status_update_queue.put_nowait(gui_state_class.ESTABLISHED)
         return reader, writer
-    except (ConnectionRefusedError, ConnectionResetError, socket.gaierror, OSError):
+    except (ConnectionRefusedError, ConnectionResetError, socket.gaierror, asyncio.exceptions.TimeoutError, OSError):
+        raise ConnectionError
+
+
+async def close_connection(
+    writer: StreamWriter,
+    status_update_queue: asyncio.Queue,
+    gui_state_class: Type[StateChangeEnum]
+) -> None:
+    """Закрывает указанное соединение с сервером."""
+    try:
+        writer.close()
+        await writer.wait_closed()
+        status_update_queue.put_nowait(gui_state_class.CLOSED)
+    except OSError:
         raise ConnectionError
 
 
