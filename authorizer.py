@@ -14,7 +14,7 @@ from gui import NicknameReceived, SendingConnectionStateChanged
 
 async def authorize(reader: StreamReader, writer: StreamWriter, token: str) -> str:
     """Авторизует пользователя в чате."""
-    host_response = await reader.readline()
+    await reader.readline()
     await submit_message(writer, token)
 
     with suppress(json.decoder.JSONDecodeError):

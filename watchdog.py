@@ -13,7 +13,6 @@ import async_timeout
 from authorizer import check_token
 from chat_reader import read_messages
 from chat_sender import send_messages
-from exceptions import InvalidToken
 
 
 PING_PONG_INTERVAL = 5
@@ -76,7 +75,7 @@ async def watch_for_connection(sending_queue: asyncio.Queue, watchdog_queue: asy
                         watchdog_logger.info(f'[{int(time.time())}] Connection is alive. {event}')
                     except asyncio.QueueEmpty:
                         break
-                sending_queue.put_nowait('') # ping pong
+                sending_queue.put_nowait('')    # ping pong
             if cm.expired:
                 raise ConnectionError
             await asyncio.sleep(PING_PONG_INTERVAL)

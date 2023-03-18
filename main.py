@@ -30,8 +30,9 @@ async def main() -> None:
     async with anyio.create_task_group() as task_group:
         task_group.start_soon(gui.draw, messages_queue, sending_queue, status_updates_queue)
         task_group.start_soon(save_messages, args.history_filepath, file_queue)
-        task_group.start_soon(handle_connection, args.reader_host, args.reader_port, args.sender_host, args.sender_port, args.token,
-                              messages_queue, sending_queue, file_queue, status_updates_queue, watchdog_queue)
+        task_group.start_soon(handle_connection, args.reader_host, args.reader_port, args.sender_host, args.sender_port,
+                              args.token, messages_queue, sending_queue, file_queue, status_updates_queue,
+                              watchdog_queue)
 
 
 if __name__ == '__main__':

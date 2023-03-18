@@ -6,7 +6,6 @@ import asyncio
 
 from authorizer import authorize
 from connections import close_connection, open_connection, submit_message
-from exceptions import InvalidToken
 from gui import SendingConnectionStateChanged
 
 
@@ -31,7 +30,7 @@ async def send_messages(
             return
 
         status_update_queue.put_nowait(SendingConnectionStateChanged.ESTABLISHED)
-        host_response = await reader.readline()
+        await reader.readline()
         while True:
             status_update_queue.put_nowait(SendingConnectionStateChanged.ESTABLISHED)
             message = await queue.get()

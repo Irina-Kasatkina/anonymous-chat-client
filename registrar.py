@@ -7,13 +7,14 @@ import json
 import tkinter as tk
 from asyncio.streams import StreamReader, StreamWriter
 from contextlib import suppress
+from tkinter.scrolledtext import ScrolledText
 
 import aiofiles
 import anyio
 
 import defaults
 from args_parser import read_parse_args
-from connections import close_connection, open_connection, sanitize_text, submit_message
+from connections import close_connection, open_connection, sanitize_text
 from exceptions import RegistrationError
 from gui import SendingConnectionStateChanged, TkAppClosed, update_tk
 
@@ -25,13 +26,13 @@ def start_register(address_field: tk.Entry, nickname_field: tk.Entry, events_que
     events_queue.put_nowait((server_address, nickname))
 
 
-async def register(reader: StreamReader, writer: StreamWriter, nickname: str) -> None:
+async def register(reader: StreamReader, writer: StreamWriter, nickname: str) -> dict:
     """Регистрирует нового пользователя в чате."""
-    host_response = await reader.readline()
+    await reader.readline()
     writer.write(f'\n'.encode())
     await writer.drain()
 
-    host_response = await reader.readline()
+    await reader.readline()
     writer.write(f'{sanitize_text(nickname)}\n'.encode())
     await writer.drain()
 
@@ -44,7 +45,7 @@ async def register(reader: StreamReader, writer: StreamWriter, nickname: str) ->
     raise RegistrationError()
 
 
-async def display_log(log_queue: asyncio.Queue, log_text_area: tk.scrolledtext.ScrolledText) -> None:
+async def display_log(log_queue: asyncio.Queue, log_text_area: ScrolledText) -> None:
     """Показывает сообщения о ходе регистрации в GUI."""
     while True:
         message = await log_queue.get()
@@ -87,16 +88,20 @@ async def watch_register(events_queue: asyncio.Queue, log_queue: asyncio.Queue, 
         reader, writer = await open_connection(host, port, dummy_queue, SendingConnectionStateChanged)
         try:
             account_parameters = await register(reader, writer, nickname)
-        except (ConnectionError, UnicodeDecodeError, RegistrationError) as e:
+        except (ConnectionError, UnicodeDecodeError, RegistrationError):
             await log_queue.put(('Регистрация закончилась неудачно. Попробуйте позднее.', 'ERROR'))
         else:
             result_token_field.delete(0, tk.END)
             result_token_field.insert(0, account_parameters['account_hash'])
             to_file_status = await write_token_to_file(account_parameters)
             if to_file_status:
-                await log_queue.put((f'Успешная регистрация. Токен сохранён в файле {defaults.USER_TOKEN_FILE}', 'SUCCESS'))
+                await log_queue.put(
+                    (f'Успешная регистрация. Токен сохранён в файле {defaults.USER_TOKEN_FILE}', 'SUCCESS')
+                )
             else:
-                await log_queue.put(('Успешная регистрация. Сохраните токен для его использования при запуске чата.', 'SUCCESS'))
+                await log_queue.put(
+                    ('Успешная регистрация. Сохраните токен для его использования при запуске чата.', 'SUCCESS')
+                )
         finally:
             await close_connection(writer, dummy_queue, SendingConnectionStateChanged)
 
@@ -138,7 +143,7 @@ async def draw(host: str, port: int, events_queue: asyncio.Queue, log_queue: asy
     result_token_field.pack(expand=1)
 
     log_frame = tk.Frame(root_frame)
-    log_text_area = tk.scrolledtext.ScrolledText(log_frame, state='disabled', height=12)
+    log_text_area = ScrolledText(log_frame, state='disabled', height=12)
     log_text_area.configure(font='TkFixedFont')
     log_text_area.tag_configure('INFO', foreground='gray')
     log_text_area.tag_configure('ERROR', font='bold', foreground='red')
