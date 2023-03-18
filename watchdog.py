@@ -69,12 +69,17 @@ async def watch_for_connection(sending_queue: asyncio.Queue, watchdog_queue: asy
         try:
             async with async_timeout.timeout(SERVER_SILENCE_TIMEOUT) as cm:
                 event = await watchdog_queue.get()
+                watchdog_logger.info(f'[{int(time.time())}] Connection is alive. {event}')
+                while True:
+                    try:
+                        event = watchdog_queue.get_nowait()
+                        watchdog_logger.info(f'[{int(time.time())}] Connection is alive. {event}')
+                    except asyncio.QueueEmpty:
+                        break
                 sending_queue.put_nowait('') # ping pong
-                await asyncio.sleep(PING_PONG_INTERVAL)
             if cm.expired:
                 raise ConnectionError
+            await asyncio.sleep(PING_PONG_INTERVAL)
         except asyncio.TimeoutError:
             watchdog_logger.info(f'[{int(time.time())}] {SERVER_SILENCE_TIMEOUT}s timeout is elapsed')
-            raise ConnectionError
-        else:
-            watchdog_logger.info(f'[{int(time.time())}] Connection is alive. {event}')
+            raise ConnectionError           
