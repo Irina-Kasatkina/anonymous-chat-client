@@ -37,7 +37,7 @@ async def handle_connection(
     status_updates_queue: asyncio.Queue,
     watchdog_queue: asyncio.Queue
 ) -> None:
-    """Управляет группой корутин, которые зависят от успешного соединения с сервером."""
+    """Управляет группой корутин, зависящих от успешного соединения с сервером."""
     while True:
         try:
             while True:
