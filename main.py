@@ -1,8 +1,9 @@
 # coding=utf-8
 
-"""Запуск интерфейса пользователя чата."""
+"""Запуск графического интерфейса пользователя чата."""
 
 import asyncio
+from contextlib import suppress
 from tkinter import messagebox
 
 import anyio
@@ -11,7 +12,7 @@ import gui
 from args_parser import read_parse_args
 from exceptions import InvalidToken
 from history import put_history_to_queue, save_messages
-from watchdog import handle_connection, watch_for_connection
+from watchdog import handle_connection
 
 
 async def main() -> None:
@@ -35,8 +36,7 @@ async def main() -> None:
 
 if __name__ == '__main__':
     try:
-        asyncio.run(main())
+        with suppress(gui.TkAppClosed, KeyboardInterrupt):
+            asyncio.run(main())
     except InvalidToken as ex:
         messagebox.showinfo(title=ex.title, message=ex.message)
-    except (gui.TkAppClosed, KeyboardInterrupt):
-        pass
